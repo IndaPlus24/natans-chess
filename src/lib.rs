@@ -1,16 +1,39 @@
-// This code is neither chess nor cheese!
-// What is it doing here?!
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+/// Used to track piece alignment and who's turn it is.
+enum Color {
+    White,
+    Black,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod piece_mod;
+use piece_mod::Piece;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+struct Game {
+    board: [Option<Piece>; 8 * 8],
+    turn: Color,
+}
+
+
+
+impl Game {
+    fn new() -> Game {
+        let board: [Option<Piece>; 8 * 8];
+        board = [
+            None, None, None, None, None, None, None, None, // a
+            None, None, None, None, None, None, None, None, // a
+            None, None, None, None, None, None, None, None, // a
+            None, None, None, None, None, None, None, None, // a
+            None, None, None, None, None, None, None, None, // a
+            None, None, None, None, None, None, None, None, // a
+            None, None, None, None, None, None, None, None, // a
+            None, None, None, None, None, None, None, None, // a
+        ];
+        Game {
+            board: board,
+            turn: Color::White,
+        }
+    }
+
+    pub fn piece_at(&self, col: u8, row: u8) -> Option<Piece> {
+        None
     }
 }
