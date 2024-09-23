@@ -1,4 +1,4 @@
 # 🧀 ♕ CHEESS ♔ 🧀 
 Coming soon, to a git repo near you.
 
-Current status: I have a bunch of pieces that should work, but I know that some do not work, and I do not have the ability to test anything yet.
+Current status: I have a board and pieces that might work, but I have no idea because there is no way to interact with the pieces.

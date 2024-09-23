@@ -1,3 +1,5 @@
+use std::default;
+
 use crate::Color;
 
 mod move_mod;
@@ -5,7 +7,7 @@ use move_mod::*;
 
 /// A chess piece
 pub struct Piece {
-    /// King: K, Queen: Q, Rook: R, Bishop: B, Knight: N, Pawn: p (optional in commands), Nothing: 0
+    /// King: K, Queen: Q, Rook: R, Bishop: B, Knight: N, Pawn: p (optional in commands)
     pub rank: char,
     pub color: Color,
     pub is_crucial: bool,
@@ -16,16 +18,23 @@ pub struct Piece {
 }
 
 impl Piece {
+    /// When setting up a board, use the following notation.
+    /// King: 'K', Queen: 'Q', Rook: 'R', Bishop: 'B', Knight: 'N', Pawn: 'p', No Piece: '0'
     pub fn new(color: Color, rank: char) -> Piece {
         match rank {
-            'r' => Piece::new_pawn(color),
+            'K' => Piece::new_king(color),
+            'Q' => Piece::new_queen(color),
+            'B' => Piece::new_bishop(color),
+            'N' => Piece::new_king(color),
+            'R' => Piece::new_rook(color),
+            'p' => Piece::new_pawn(color),
 
             _ => panic!("Maybe do not make it crash when making a piece that does not exist.")
         }
     }
     pub fn new_pawn(color: Color) -> Piece {
         let mut moves = Vec::<Move>::with_capacity(4);
-        let anemyC = match color {
+        let enemyC = match color {
             Color::Black => Color::White,
             Color::White => Color::Black
         };
@@ -34,6 +43,7 @@ impl Piece {
             maximum_slide: Some(1),
             directions: vec![(0,1)],
             can_capture: false,
+            color,
             ..Default::default()
         });
         // Move Two steps:
@@ -49,6 +59,7 @@ impl Piece {
                 has_moved: Some((Comparator::Exactly, 0)),
                 ..Default::default()
             }],
+            color,
             ..Default::default()
         });
         // Capture
@@ -59,10 +70,11 @@ impl Piece {
             requirements: vec![
                 PieceStatus {
                     relative_pos: Some((1,1)),
-                    color: Some(Color::Black),
+                    color: Some(enemyC),
                     ..Default::default()
                 }
             ],
+            color,
             ..Default::default()
         });
         // En Passant
@@ -70,10 +82,11 @@ impl Piece {
             maximum_slide: Some(1),
             directions: vec![(1,1)],
             mirror: Some(Mirror::Vertically),
+            can_capture: false, // It can not capture in the traditional way.
             requirements: vec![
                 PieceStatus {
                     rank: Some('p'),
-                    board_pos: panic!("You forgot to figure out how the board position works!"),
+                    board_pos: (None, Some(4)),
                     relative_pos: Some((1,0)),
                     has_moved: Some((Comparator::Exactly, 1)),
                     color: Some(Color::Black),
@@ -81,6 +94,7 @@ impl Piece {
                     ..Default::default()
                 }
             ],
+            color,
             ..Default::default()
         });
 
@@ -91,7 +105,114 @@ impl Piece {
             last_moved: None,
             times_moved: 0,
             is_crucial: false,
-            moves: Vec::new(),
+            moves,
         }
+    }
+
+    fn new_rook (color: Color) -> Piece {
+        Piece {
+            color,
+            is_crucial: false,
+            can_promote: false,
+            rank: 'R',
+            last_moved: None,
+            times_moved: 0,
+            moves: vec![
+                Move {
+                    directions: vec![
+                       (0,1), (1,0)
+                    ],
+                    mirror: Some(Mirror::VerAndHor),
+                    color,
+                    ..Default::default()
+                }
+            ]
+        }
+    }
+
+    fn new_bishop (color: Color) -> Piece {
+        Piece {
+            color,
+            is_crucial: false,
+            can_promote: false,
+            rank: 'B',
+            last_moved: None,
+            times_moved: 0,
+            moves: vec![
+                Move {
+                    directions: vec![
+                       (1,1)
+                    ],
+                    mirror: Some(Mirror::VerAndHor),
+                    color,
+                    ..Default::default()
+                }
+            ]
+        }
+    }
+
+    fn new_knight (color: Color) -> Piece {
+        Piece {
+            color,
+            is_crucial: false,
+            can_promote: false,
+            rank: 'N',
+            last_moved: None,
+            times_moved: 0,
+            moves: vec![
+                Move {
+                    directions: vec![
+                       (2,1), (1,2)
+                    ],
+                    mirror: Some(Mirror::VerAndHor),
+                    color,
+                    ..Default::default()
+                }
+            ]
+        }
+    }
+    fn new_queen (color: Color) -> Piece {
+        Piece {
+            color,
+            is_crucial: false,
+            can_promote: false,
+            rank: 'Q',
+            last_moved: None,
+            times_moved: 0,
+            moves: vec![
+                Move {
+                    directions: vec![
+                       (0,1), (1,1), (1,0)
+                    ],
+                    mirror: Some(Mirror::VerAndHor),
+                    color,
+                    ..Default::default()
+                }
+            ]
+        }
+    }
+
+    fn new_king (color: Color) -> Piece {
+        Piece {
+            color,
+            is_crucial: true,
+            can_promote: false,
+            rank: 'K',
+            last_moved: None,
+            times_moved: 0,
+            moves: vec![
+                Move {
+                    maximum_slide: Some(1),
+                    directions: vec![
+                       (0,1), (1,1), (1,0)
+                    ],
+                    mirror: Some(Mirror::VerAndHor),
+                    color,
+                    ..Default::default()
+                }
+            ]
+        }
+
+        // Add castling
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{borrow::Borrow, collections::HashSet, os::linux::raw::stat};
 
 use crate::{Color, Game};
 
@@ -19,17 +19,16 @@ pub enum Mirror {
     VerAndHor,
 }
 
-
 pub struct PieceStatus {
     pub board_pos: (Option<u8>, Option<u8>),
     pub relative_pos: Option<(i8, i8)>,
-    /// None means there has to be a piece of any rank. Some('0') means it has to be empty.
+    /// None means it is empty. Some('0') means it can be any rank.
     pub rank: Option<char>,
     pub color: Option<Color>,
-    pub has_moved: Option<(Comparator, u8)>,
-    /// 0 is "last turn",
-    /// -1 is the turn before and -2 is before that,
-    /// 1 is the first turn of the game and 2 is after that
+    pub has_moved: Option<(Comparator, u32)>,
+    /// 0 is the most recent turn completed by the owner,
+    /// -1 is the turn before, and so on.
+    /// 1 is the first turn of the game, 2 is after that, and so on.
     pub last_moved: Option<i32>,
 }
 impl Default for PieceStatus {
@@ -49,10 +48,12 @@ pub struct Move {
     /// Describes the number of times that a move can be repeated in the same direction.
     /// If None, then there is no limit to the sliding.
     pub maximum_slide: Option<u8>,
-    /// If 0, then they will be able to go nowhere
+    /// If 0, then they will be able to go nowhere.
     pub minimum_slide: u8,
     pub directions: Vec<(i8, i8)>,
     pub can_capture: bool,
+    /// The color of the piece that this move belongs to.
+    pub color: Color,
     pub mirror: Option<Mirror>,
     pub requirements: Vec<PieceStatus>,
 }
@@ -64,6 +65,7 @@ impl Default for Move {
             minimum_slide: 1,
             directions: Vec::new(),
             can_capture: true,
+            color: Color::White,
             mirror: None,
             requirements: Vec::new(),
         }
@@ -95,6 +97,7 @@ impl Move {
                     self.minimum_slide,
                     max_s,
                     self.can_capture,
+                    &self.color,
                     game,
                 ) {
                     valid.insert(value);
@@ -114,6 +117,7 @@ impl Move {
                         self.minimum_slide,
                         max_s,
                         self.can_capture,
+                        &self.color,
                         game,
                     ) {
                         valid.insert(value);
@@ -130,6 +134,7 @@ impl Move {
                         self.minimum_slide,
                         max_s,
                         self.can_capture,
+                        &self.color,
                         game,
                     ) {
                         valid.insert(value);
@@ -146,6 +151,7 @@ impl Move {
                         self.minimum_slide,
                         max_s,
                         self.can_capture,
+                        &self.color,
                         game,
                     ) {
                         valid.insert(value);
@@ -170,7 +176,7 @@ fn check_conditions(
         let mut cf = 0 as u8;
         let mut rdf = 1 as i8;
         let mut rf = 0 as u8;
-        
+
         if let Some(ref m) = mirror {
             if *m == Mirror::Horizontally || *m == Mirror::VerAndHor {
                 cdf = -1;
@@ -182,39 +188,109 @@ fn check_conditions(
             }
         }
 
-        if let Some(r_pos) = con.relative_pos {
-            let col = (pos.0 as i8 + r_pos.0 * cdf) as u8;
-            let row = (pos.1 as i8 + r_pos.1 * rdf) as u8;
+        let piece = match con.relative_pos {
+            Some(r_pos) => {
+                let col = (pos.0 as i8 + r_pos.0 * cdf) as u8;
+                let row = (pos.1 as i8 + r_pos.1 * rdf) as u8;
 
-            // If a board row or column is specified, they must match the relative position.
-            if let Some(c) = con.board_pos.0 {
-                if col != ((8 * cf) as i8 + c as i8 * cdf) as u8 {
-                    return false;
+                // If a board row or column is specified, they must match the relative position.
+                if let Some(c) = con.board_pos.0 {
+                    if col != ((8 * cf) as i8 + c as i8 * cdf) as u8 {
+                        return false;
+                    }
                 }
-            }
-            if let Some(r) = con.board_pos.1 {
-                if row != ((8 * rf) as i8 + r as i8 * rdf) as u8 {
-                    return false;
+                if let Some(r) = con.board_pos.1 {
+                    if row != ((8 * rf) as i8 + r as i8 * rdf) as u8 {
+                        return false;
+                    }
                 }
+
+                game.piece_at(col, row)
             }
 
-            let p = game.piece_at(col, row);
+            _ => {
+                // If relative position is not defined, then board position must be defined.
+                let col = ((8 * cf) as i8 + con.board_pos.0.unwrap() as i8 * cdf) as u8;
+                let row = ((8 * rf) as i8 + con.board_pos.1.unwrap() as i8 * rdf) as u8;
 
-            // Compare the piece and piece status here
-        } else {
-            // We need a position, so board position must be fully defined.
-            let col = ((8 * cf) as i8 + con.board_pos.0.unwrap() as i8 * cdf) as u8;
-            let row = ((8 * rf) as i8 + con.board_pos.1.unwrap() as i8 * rdf) as u8;
+                game.piece_at(col, row)
+            }
+        };
 
-            let p = game.piece_at(col, row);
-
-            // Compare the piece and piece status here
-        }
+        // If everything else is good, then just check if it matches.
+        return check_piece_status(piece, con, game);
     }
     true
 }
 
+fn check_piece_status(piece: &Option<Piece>, status: &PieceStatus, game: &Game) -> bool {
+    if let Some(p) = piece {
+        // There is a piece
+        if let Some(rank) = status.rank {
+            // There is supposed to be a piece
 
+            // Check rank
+            if rank != '0' && rank != p.rank {
+                return false;
+            }
+
+            // Check color
+            if let Some(color) = &status.color {
+                if *color != p.color {
+                    // Wrong color (racism)
+                    return false;
+                }
+            }
+
+            // Check if the last move matches
+            match status.last_moved {
+                Some(last_move) if last_move > 0 => {
+                    if p.last_moved == None || last_move as u32 != p.last_moved.unwrap() {return false;}
+                }
+                Some(last_move) if last_move <= 0 => {
+                    if let Some(p_last_move) = p.last_moved {
+                        // The math makes sense, I think.
+                        let turn = game.turn_count as i32 + last_move
+                            - if game.turn_owner == p.color || game.turn_owner == Color::White {
+                                1
+                            } else {
+                                0
+                            };
+                        if turn != p_last_move as i32 {
+                            return false;
+                        }
+                    } else {
+                        // It has not moved ever, so it fails.
+                        return false;
+                    }
+                }
+                _ => {}    
+            }
+
+            // Check if it has moved the right amount of times
+            if let Some(cv) = &status.has_moved {
+                use Comparator::*;
+                match cv.0 {
+                    MoreThan => if p.times_moved <= cv.1 { return false; },
+                    AtLeast => if p.times_moved < cv.1 { return false; },
+                    Exactly => if p.times_moved != cv.1 { return false; },
+                    AtMost => if p.times_moved > cv.1 { return false; },
+                    LessThan => if p.times_moved >= cv.1 { return false; }
+                }
+            }
+        } else {
+            // Turns out, there is not supposed to be a piece here
+            return false;
+        }
+    } else {
+        // There is no piece
+        if let Some(_s) = status.rank {
+            // But there is supposed to be a piece here
+            return false;
+        }
+    }
+    true
+}
 
 fn prune_dir(
     p_col: u8,
@@ -224,6 +300,7 @@ fn prune_dir(
     min_s: u8,
     max_s: u8,
     can_capture: bool,
+    color: &Color,
     game: &Game,
 ) -> Vec<u8> {
     let mut r = Vec::<u8>::new();
@@ -241,8 +318,8 @@ fn prune_dir(
 
         match p {
             None => r.push(col as u8 * 8 + row as u8),
-            _ => {
-                if can_capture {
+            Some(piece) => {
+                if can_capture && piece.color != *color {
                     r.push(col as u8 * 8 + row as u8)
                 }
                 return r;
