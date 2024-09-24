@@ -354,10 +354,13 @@ fn prune_dir(
         match p {
             None => if i >= min_s { r.push(col as u8 * 8 + row as u8)},
             Some(piece) => {
-                if can_capture && piece.color != *color {
-                    r.push(col as u8 * 8 + row as u8)
+                if ((can_capture && piece.color != *color) || i == 0) && i >= min_s{
+                    r.push(col as u8 * 8 + row as u8);
                 }
-                return r;
+                // Do not collide with yourself
+                if i > 0 {
+                    return r;
+                }
             }
         }
     }
