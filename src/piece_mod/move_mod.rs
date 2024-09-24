@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, collections::HashSet, os::linux::raw::stat};
 
-use crate::{Color, Game};
+use crate::{Color, Game, GameState};
 
 use super::Piece;
 
@@ -19,6 +19,17 @@ pub enum Mirror {
     VerAndHor,
 }
 
+pub enum Effect {
+    Capture(Position),
+    Move(Position, Position)
+}
+
+pub enum Position {
+    /// ALWAYS relative to the "owner" of the move. 
+    Relative((i8,i8)),
+    Global((u8,u8)),
+}
+
 pub struct PieceStatus {
     pub board_pos: (Option<u8>, Option<u8>),
     pub relative_pos: Option<(i8, i8)>,
@@ -31,6 +42,7 @@ pub struct PieceStatus {
     /// 1 is the first turn of the game, 2 is after that, and so on.
     pub last_moved: Option<i32>,
 }
+
 impl Default for PieceStatus {
     fn default() -> Self {
         PieceStatus {
@@ -56,6 +68,13 @@ pub struct Move {
     pub color: Color,
     pub mirror: Option<Mirror>,
     pub requirements: Vec<PieceStatus>,
+    /// If a move would need a command that does not follow the traditional format, describe it here.
+    pub command: Option<String>,
+    /// If a move would capture a piece without landing on its space, 
+    /// or it would cause a different piece to move, then this is how you do it.
+    pub effect: Vec<Effect>,
+    /// Apparently, you are unable to castle when in check.
+    pub safe_throughout: bool
 }
 
 impl Default for Move {
@@ -68,6 +87,9 @@ impl Default for Move {
             color: Color::White,
             mirror: None,
             requirements: Vec::new(),
+            command: None,
+            effect: Vec::new(),
+            safe_throughout: false
         }
     }
 }
@@ -75,6 +97,10 @@ impl Default for Move {
 impl Move {
     pub fn prune(&self, game: &Game, pos: (u8, u8)) -> HashSet<u8> {
         let mut valid = HashSet::<u8>::new();
+
+        if self.safe_throughout && game.is_safe_position(pos.0, pos.1, self.color) {
+            return valid;
+        }
 
         let p_col = pos.0;
         let p_row = pos.1;
@@ -99,6 +125,7 @@ impl Move {
                     self.can_capture,
                     &self.color,
                     game,
+                    self.safe_throughout
                 ) {
                     valid.insert(value);
                 }
@@ -119,6 +146,7 @@ impl Move {
                         self.can_capture,
                         &self.color,
                         game,
+                        self.safe_throughout
                     ) {
                         valid.insert(value);
                     }
@@ -136,6 +164,7 @@ impl Move {
                         self.can_capture,
                         &self.color,
                         game,
+                        self.safe_throughout
                     ) {
                         valid.insert(value);
                     }
@@ -153,6 +182,7 @@ impl Move {
                         self.can_capture,
                         &self.color,
                         game,
+                        self.safe_throughout
                     ) {
                         valid.insert(value);
                     }
@@ -302,10 +332,11 @@ fn prune_dir(
     can_capture: bool,
     color: &Color,
     game: &Game,
+    safe_throughout: bool,
 ) -> Vec<u8> {
     let mut r = Vec::<u8>::new();
 
-    for i in min_s..=max_s {
+    for i in 0..=max_s {
         let col = p_col as i8 + i as i8 * d_col;
         let row = p_row as i8 + i as i8 * d_row;
 
@@ -314,10 +345,14 @@ fn prune_dir(
             return r;
         }
 
+        if safe_throughout && !game.is_safe_position(col as u8, row as u8, *color) {
+            return r;
+        }
+
         let p = game.piece_at(col as u8, row as u8);
 
         match p {
-            None => r.push(col as u8 * 8 + row as u8),
+            None => if i >= min_s { r.push(col as u8 * 8 + row as u8)},
             Some(piece) => {
                 if can_capture && piece.color != *color {
                     r.push(col as u8 * 8 + row as u8)

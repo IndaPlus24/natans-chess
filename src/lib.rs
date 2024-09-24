@@ -5,6 +5,16 @@ enum Color {
     Black,
 }
 
+#[derive(PartialEq)]
+enum GameState {
+    Running,
+    Check,
+    GameOver,
+    /// Hopefully I will never have to use this one.
+    /// But I would rather have it and not need it, than need it and not have it.
+    SomethingHasGoneTerriblyWrongMilord,
+}
+
 mod piece_mod;
 use piece_mod::Piece;
 
@@ -12,6 +22,8 @@ struct Game {
     board: [Option<Piece>; 8 * 8],
     turn_owner: Color,
     turn_count: u32,
+    game_state: GameState,
+
 }
 
 impl Game {
@@ -37,6 +49,7 @@ impl Game {
             board: board,
             turn_owner: Color::White, // White starts
             turn_count: 1,            // 1st turn
+            game_state: GameState::Running,
         }
     }
     pub fn make_board(template: [char; 64], white_map: u64) -> Result<[Option<Piece>; 64], String> {
@@ -70,7 +83,7 @@ impl Game {
             // Track if either side got a crucial piece (a "King")
             if piece.is_crucial {
                 match color {
-                    Color::White => b_crucial = true,
+                    Color::White => w_crucial = true,
                     Color::Black => b_crucial = true,
                 }
             }
@@ -78,7 +91,7 @@ impl Game {
             board[i] = Some(piece);
         }
 
-        if !w_crucial && !b_crucial {
+        if !w_crucial || !b_crucial {
             return Err("Both sides need at least one crucial piece".to_owned());
         }
 
@@ -116,6 +129,11 @@ impl Game {
             println!("|");
         }
         println!("+---+---+---+---+---+---+---+---+");
+    }
+    
+    // I promise, I will make it actually do things soon.
+    pub fn is_safe_position (&self, col: u8, row: u8, color: Color) -> bool {
+        true
     }
 }
 

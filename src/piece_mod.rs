@@ -32,16 +32,23 @@ impl Piece {
             _ => panic!("Maybe do not make it crash when making a piece that does not exist.")
         }
     }
+
     pub fn new_pawn(color: Color) -> Piece {
         let mut moves = Vec::<Move>::with_capacity(4);
         let enemyC = match color {
             Color::Black => Color::White,
             Color::White => Color::Black
         };
+        let mult: (i8,i8) = if color == Color::Black {
+            (1,0)
+        } else {
+            (-1,1)
+        };
+
         // Move forwards:
         moves.push(Move{
             maximum_slide: Some(1),
-            directions: vec![(0,1)],
+            directions: vec![(0,1*mult.0)],
             can_capture: false,
             color,
             ..Default::default()
@@ -50,7 +57,7 @@ impl Piece {
         moves.push(Move{
             maximum_slide: Some(2),
             minimum_slide: 2,
-            directions: vec![(0,1)],
+            directions: vec![(0,1*mult.0)],
             can_capture: false,
             // Only when it has not moved before.
             requirements: vec![
@@ -65,11 +72,11 @@ impl Piece {
         // Capture
         moves.push(Move{
             maximum_slide: Some(1),
-            directions: vec![(1,1)],
+            directions: vec![(1,1*mult.0)],
             mirror: Some(Mirror::Vertically),
             requirements: vec![
                 PieceStatus {
-                    relative_pos: Some((1,1)),
+                    relative_pos: Some((1,1*mult.0)),
                     color: Some(enemyC),
                     ..Default::default()
                 }
@@ -80,13 +87,13 @@ impl Piece {
         // En Passant
         moves.push(Move{
             maximum_slide: Some(1),
-            directions: vec![(1,1)],
+            directions: vec![(1,1*mult.0)],
             mirror: Some(Mirror::Vertically),
             can_capture: false, // It can not capture in the traditional way.
             requirements: vec![
                 PieceStatus {
                     rank: Some('p'),
-                    board_pos: (None, Some(4)),
+                    board_pos: (None, Some((8*mult.1 + 4*mult.0) as u8)),
                     relative_pos: Some((1,0)),
                     has_moved: Some((Comparator::Exactly, 1)),
                     color: Some(Color::Black),
@@ -95,6 +102,9 @@ impl Piece {
                 }
             ],
             color,
+            effect: vec![
+                Effect::Capture(Position::Relative((1,0)))
+            ],
             ..Default::default()
         });
 
@@ -208,6 +218,58 @@ impl Piece {
                     ],
                     mirror: Some(Mirror::VerAndHor),
                     color,
+                    ..Default::default()
+                },
+                // Castling, King side
+                Move {
+                    maximum_slide: Some(2),
+                    minimum_slide: 2,
+                    can_capture: false,
+                    color: Color::White,
+                    directions: vec![(1,0)],
+                    safe_throughout: true,
+                    requirements: vec![
+                        PieceStatus {
+                            relative_pos: Some((0,0)),
+                            has_moved: Some((Comparator::Exactly, 0)),
+                            ..Default::default()
+                        },
+                        PieceStatus {
+                            relative_pos: Some((3,0)),
+                            color: Some(color),
+                            rank: Some('R'),
+                            has_moved: Some((Comparator::Exactly, 0)),
+                            ..Default::default()
+                        }
+                    ],
+                    command: Some("O-O".to_owned()),
+                    effect: vec![Effect::Move(Position::Relative((3,0)), Position::Relative((1,0)))],
+                    ..Default::default()
+                },
+                // Castling, Queen side
+                Move {
+                    maximum_slide: Some(2),
+                    minimum_slide: 2,
+                    can_capture: false,
+                    color: Color::White,
+                    directions: vec![(-1,0)],
+                    safe_throughout: true,
+                    requirements: vec![
+                        PieceStatus {
+                            relative_pos: Some((0,0)),
+                            has_moved: Some((Comparator::Exactly, 0)),
+                            ..Default::default()
+                        },
+                        PieceStatus {
+                            relative_pos: Some((-4,0)),
+                            color: Some(color),
+                            rank: Some('R'),
+                            has_moved: Some((Comparator::Exactly, 0)),
+                            ..Default::default()
+                        }
+                    ],
+                    command: Some("O-O-O".to_owned()),
+                    effect: vec![Effect::Move(Position::Relative((-4,0)), Position::Relative((-1,0)))],
                     ..Default::default()
                 }
             ]
