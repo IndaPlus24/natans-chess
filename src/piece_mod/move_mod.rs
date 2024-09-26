@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, collections::HashSet, os::linux::raw::stat};
+use std::collections::*;
 
 use crate::{Color, Game, GameState};
 
@@ -19,11 +19,13 @@ pub enum Mirror {
     VerAndHor,
 }
 
+#[derive(Clone, Copy)]
 pub enum Effect {
     Capture(Position),
     Move(Position, Position)
 }
 
+#[derive(Clone, Copy)]
 pub enum Position {
     /// ALWAYS relative to the "owner" of the move. 
     Relative((i8,i8)),
@@ -95,8 +97,9 @@ impl Default for Move {
 }
 
 impl Move {
-    pub fn prune(&self, game: &Game, pos: (u8, u8)) -> HashSet<u8> {
-        let mut valid = HashSet::<u8>::new();
+    // Make it do a hash map that includes all the extra effects
+    pub fn prune(&self, game: &Game, pos: (u8, u8)) -> HashMap<u8,Vec<Effect>> {
+        let mut valid = HashMap::<u8,Vec<Effect>>::new();
 
         if self.safe_throughout && game.is_safe_position(pos.0, pos.1, self.color) {
             return valid;
@@ -127,7 +130,7 @@ impl Move {
                     game,
                     self.safe_throughout
                 ) {
-                    valid.insert(value);
+                    valid.insert(value, self.effect.clone());
                 }
             }
 
@@ -148,7 +151,7 @@ impl Move {
                         game,
                         self.safe_throughout
                     ) {
-                        valid.insert(value);
+                        valid.insert(value, self.effect.clone());
                     }
                 }
                 if (*m == Mirror::Vertically || *m == Mirror::VerAndHor)
@@ -166,7 +169,7 @@ impl Move {
                         game,
                         self.safe_throughout
                     ) {
-                        valid.insert(value);
+                        valid.insert(value, self.effect.clone());
                     }
                 }
                 if *m == Mirror::VerAndHor
@@ -184,7 +187,7 @@ impl Move {
                         game,
                         self.safe_throughout
                     ) {
-                        valid.insert(value);
+                        valid.insert(value, self.effect.clone());
                     }
                 }
             }
@@ -253,7 +256,7 @@ fn check_conditions(
     true
 }
 
-fn check_piece_status(piece: &Option<Piece>, status: &PieceStatus, game: &Game) -> bool {
+fn check_piece_status(piece: Option<&Piece>, status: &PieceStatus, game: &Game) -> bool {
     if let Some(p) = piece {
         // There is a piece
         if let Some(rank) = status.rank {
@@ -352,10 +355,10 @@ fn prune_dir(
         let p = game.piece_at(col as u8, row as u8);
 
         match p {
-            None => if i >= min_s { r.push(col as u8 * 8 + row as u8)},
+            None => if i >= min_s { r.push(col as u8 + row as u8 * 8)},
             Some(piece) => {
                 if ((can_capture && piece.color != *color) || i == 0) && i >= min_s{
-                    r.push(col as u8 * 8 + row as u8);
+                    r.push(col as u8 + row as u8 * 8);
                 }
                 // Do not collide with yourself
                 if i > 0 {

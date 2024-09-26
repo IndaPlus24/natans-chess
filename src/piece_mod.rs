@@ -1,6 +1,5 @@
-use std::default;
-
-use crate::Color;
+use std::collections::*;
+use super::*;
 
 mod move_mod;
 use move_mod::*;
@@ -25,12 +24,48 @@ impl Piece {
             'K' => Piece::new_king(color),
             'Q' => Piece::new_queen(color),
             'B' => Piece::new_bishop(color),
-            'N' => Piece::new_king(color),
+            'N' => Piece::new_knight(color),
             'R' => Piece::new_rook(color),
             'p' => Piece::new_pawn(color),
 
             _ => panic!("Maybe do not make it crash when making a piece that does not exist.")
         }
+    }
+
+    pub fn all_possible_moves (&self, col: u8, row: u8, game: &Game) -> HashMap<u8,Vec<Effect>> {
+        let mut all = HashMap::<u8,Vec<Effect>>::new();
+        for m in &self.moves {
+            let batch = m.prune(game, (col, row));
+            for (key, val) in batch {
+                // This should never cause a collision (emphasis on should)
+                all.insert(key, val);
+            }
+        }
+        all
+    }
+
+    pub fn get_danger_zone (&self, col: u8, row: u8, game: &Game) -> HashSet<u8> {
+        let mut all = HashSet::<u8>::new();
+        for m in &self.moves {
+            let batch = m.prune(game, (col, row));
+            for (key, val) in batch {
+                if m.can_capture {
+                    all.insert(key);
+                }
+                for e in &m.effect {
+                    match e {
+                        Effect::Capture(p) => {
+                            match p {
+                                Position::Global(g) => { all.insert(g.0 + g.1 * 8); },
+                                Position::Relative(r) => { all.insert(r.0 as u8 + col + (r.1 as u8 + row) * 8); }
+                            }
+                        }
+                        _ => {},
+                    }
+                }
+            }
+        }
+        all
     }
 
     pub fn new_pawn(color: Color) -> Piece {
@@ -39,7 +74,7 @@ impl Piece {
             Color::Black => Color::White,
             Color::White => Color::Black
         };
-        let mult: (i8,i8) = if color == Color::Black {
+        let mult: (i8,i8) = if color == Color::White {
             (1,0)
         } else {
             (-1,1)
@@ -63,6 +98,7 @@ impl Piece {
             requirements: vec![
             PieceStatus{
                 relative_pos: Some((0,0)),
+                rank: Some('p'),
                 has_moved: Some((Comparator::Exactly, 0)),
                 ..Default::default()
             }],
@@ -73,11 +109,12 @@ impl Piece {
         moves.push(Move{
             maximum_slide: Some(1),
             directions: vec![(1,1*mult.0)],
-            mirror: Some(Mirror::Vertically),
+            mirror: Some(Mirror::Horizontally),
             requirements: vec![
                 PieceStatus {
                     relative_pos: Some((1,1*mult.0)),
                     color: Some(enemyC),
+                    rank: Some('0'),
                     ..Default::default()
                 }
             ],
@@ -88,7 +125,7 @@ impl Piece {
         moves.push(Move{
             maximum_slide: Some(1),
             directions: vec![(1,1*mult.0)],
-            mirror: Some(Mirror::Vertically),
+            mirror: Some(Mirror::Horizontally),
             can_capture: false, // It can not capture in the traditional way.
             requirements: vec![
                 PieceStatus {

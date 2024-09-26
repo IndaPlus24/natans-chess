@@ -23,7 +23,6 @@ struct Game {
     turn_owner: Color,
     turn_count: u32,
     game_state: GameState,
-
 }
 
 impl Game {
@@ -52,6 +51,7 @@ impl Game {
             game_state: GameState::Running,
         }
     }
+
     pub fn make_board(template: [char; 64], white_map: u64) -> Result<[Option<Piece>; 64], String> {
         let mut board: [Option<Piece>; 64];
         board = [
@@ -70,14 +70,18 @@ impl Game {
 
         for i in 0..64 {
             let rank = template[i];
-            
+
             // Leave empty spots
             if rank == '0' {
                 continue;
             }
 
             // Default to black
-            let color = if (white_map >> i) & 1 == 1 { Color::White } else { Color:: Black };
+            let color = if (white_map >> i) & 1 == 1 {
+                Color::White
+            } else {
+                Color::Black
+            };
             let piece = Piece::new(color, rank);
 
             // Track if either side got a crucial piece (a "King")
@@ -99,40 +103,65 @@ impl Game {
     }
 
     // (0,0) is bottom left. (7,7) is top right.
-    pub fn piece_at(&self, col: u8, row: u8) -> &Option<Piece> {
-        &self.board[(row * 8 + col) as usize]
+    pub fn piece_at(&self, col: u8, row: u8) -> Option<&Piece> {
+        self.board[(row * 8 + col) as usize].as_ref()
     }
 
     pub fn print_board(&self) {
         // Row 0 is the bottom, but the console draws top to bottom.
         for row in (0..8 as u8).rev() {
-            println!("+---+---+---+---+---+---+---+---+");
             for col in 0..8 as u8 {
                 if (col + row) & 1 == 1 {
-                    print!("|\x1b[7m");
-                }
-                else {
-                    print!("|");
+                    print!("\x1b[7m");
                 }
 
                 if let Some(p) = self.piece_at(col, row) {
                     match p.color {
                         Color::White => print!("({})", p.rank),
-                        Color::Black => print!("[{}]", p.rank)
+                        Color::Black => print!("[{}]", p.rank),
                     };
-                } 
-                else {
+                } else {
                     print!("   ")
                 }
                 print!("\x1b[0m");
             }
-            println!("|");
+            println!();
         }
-        println!("+---+---+---+---+---+---+---+---+");
     }
-    
+
+    pub fn print_moves(&self, col: u8, row: u8) {
+        if let Some(p) = self.piece_at(col, row) {
+            let moves = p.all_possible_moves(col, row, self);
+
+            for r in (0..8 as u8).rev() {
+                for c in 0..8 as u8 {
+                    if c == col && r == row {
+                        print!("\x1b[38;5;9m\x1b[48;5;1m");
+                    } else if moves.contains_key(&(c + r * 8)) {
+                        print!("\x1b[38;5;14m\x1b[48;5;14m");
+                    }
+                    if (c + r) & 1 == 1 {
+                        print!("\x1b[7m");
+                    }
+
+                    if let Some(p) = self.piece_at(c, r) {
+                        match p.color {
+                            Color::White => print!("({})", p.rank),
+                            Color::Black => print!("[{}]", p.rank),
+                        };
+                    } else {
+                        print!("   ")
+                    }
+                    print!("\x1b[0m");
+                }
+                // println!("|");
+                println!();
+            }
+        }
+    }
+
     // I promise, I will make it actually do things soon.
-    pub fn is_safe_position (&self, col: u8, row: u8, color: Color) -> bool {
+    pub fn is_safe_position(&self, col: u8, row: u8, color: Color) -> bool {
         true
     }
 }
@@ -140,10 +169,191 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    const test_template: [char; 64] = [
+        '0', 'K', '0', '0', '0', '0', '0', '0', //
+        '0', '0', '0', '0', '0', '0', '0', '0', //
+        '0', '0', '0', '0', '0', '0', '0', '0', //
+        '0', '0', '0', '0', '0', '0', '0', '0', //
+        '0', '0', '0', '0', '0', '0', '0', '0', //
+        '0', '0', '0', '0', '0', '0', '0', '0', //
+        '0', '0', '0', '0', '0', '0', '0', '0', //
+        '0', '0', '0', '0', '0', '0', 'K', '0', //
+    ];
+    const color_template: u64 = 0x00000000FFFFFFFF;
     #[test]
     fn make_and_print() {
         let g = Game::new();
         g.print_board();
+    }
+
+    #[test]
+    fn display_moves() {
+        let g = Game::new();
+        g.print_moves(4, 1);
+        g.print_moves(5, 1);
+    }
+
+    #[test]
+    fn test_pawn_move_normal() {
+        let g = Game::new();
+        let p = g.piece_at(4, 1).unwrap();
+        let m = p.moves[0].prune(&g, (4, 1));
+
+        if m.len() != 1 || !m.contains_key(&(4 + 2 * 8)) {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_move_double() {
+        let g = Game::new();
+        let p = g.piece_at(4, 1).unwrap();
+        let m = p.moves[1].prune(&g, (4, 1));
+
+        if m.len() != 1 || !m.contains_key(&(4 + 3 * 8)) {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_move_capture_false() {
+        let g = Game::new();
+        let p = g.piece_at(4, 1).unwrap();
+        let m = p.moves[2].prune(&g, (4, 1));
+
+        if m.len() != 0 {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_move_capture_true() {
+        let mut template = test_template;
+        template[3 + 3 * 8] = 'p';
+        template[4 + 4 * 8] = 'p';
+        let b = Game::make_board(template, color_template).ok().unwrap();
+        let g = Game {
+            board: b,
+            turn_owner: Color::White,
+            turn_count: 0,
+            game_state: GameState::Running,
+        };
+
+        g.print_moves(3, 3);
+
+        let p = g.piece_at(3, 3).unwrap();
+        let m = p.moves[2].prune(&g, (3, 3));
+
+        if m.len() != 1 || !m.contains_key(&(4 + 4 * 8)) {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_move_capture_true_flip() {
+        let mut template = test_template;
+        template[4 + 3 * 8] = 'p';
+        template[3 + 4 * 8] = 'p';
+        let b = Game::make_board(template, color_template).ok().unwrap();
+        let g = Game {
+            board: b,
+            turn_owner: Color::White,
+            turn_count: 0,
+            game_state: GameState::Running,
+        };
+
+        g.print_moves(4, 3);
+
+        let p = g.piece_at(4, 3).unwrap();
+        let m = p.moves[2].prune(&g, (4, 3));
+
+        if m.len() != 1 || !m.contains_key(&(3 + 4 * 8)) {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_black_move_normal() {
+        let g = Game::new();
+        let p = g.piece_at(4, 6).unwrap();
+        let m = p.moves[0].prune(&g, (4, 6));
+
+        g.print_moves(4, 6);
+
+        if m.len() != 1 || !m.contains_key(&(4 + 5 * 8)) {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_black_move_double() {
+        let g = Game::new();
+        let p = g.piece_at(4, 6).unwrap();
+        let m = p.moves[1].prune(&g, (4, 6));
+
+        g.print_moves(4, 6);
+
+        if m.len() != 1 || !m.contains_key(&(4 + 4 * 8)) {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_black_move_capture_false() {
+        let g = Game::new();
+        let p = g.piece_at(4, 6).unwrap();
+        let m = p.moves[2].prune(&g, (4, 6));
+
+        g.print_moves(4, 6);
+
+        if m.len() != 0 {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_black_move_capture_true() {
+        let mut template = test_template;
+        template[3 + 3 * 8] = 'p';
+        template[4 + 4 * 8] = 'p';
+        let b = Game::make_board(template, color_template).ok().unwrap();
+        let g = Game {
+            board: b,
+            turn_owner: Color::White,
+            turn_count: 0,
+            game_state: GameState::Running,
+        };
+
+        g.print_moves(4, 4);
+
+        let p = g.piece_at(4, 4).unwrap();
+        let m = p.moves[2].prune(&g, (4, 4));
+
+        if m.len() != 1 || !m.contains_key(&(3 + 3 * 8)) {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_pawn_black_move_capture_true_flip() {
+        let mut template = test_template;
+        template[4 + 3 * 8] = 'p';
+        template[3 + 4 * 8] = 'p';
+        let b = Game::make_board(template, color_template).ok().unwrap();
+        let g = Game {
+            board: b,
+            turn_owner: Color::White,
+            turn_count: 0,
+            game_state: GameState::Running,
+        };
+
+        g.print_moves(3, 4);
+
+        let p = g.piece_at(3, 4).unwrap();
+        let m = p.moves[2].prune(&g, (3, 4));
+
+        if m.len() != 1 || !m.contains_key(&(4 + 3 * 8)) {
+            panic!();
+        }
     }
 }
