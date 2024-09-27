@@ -2,8 +2,9 @@ use std::collections::*;
 
 use crate::{Color, Game, GameState};
 
-use super::Piece;
+use super::*;
 
+#[derive(Clone, Copy, Debug)]
 pub enum Comparator {
     MoreThan, // x > y
     AtLeast,  // x >= y
@@ -12,26 +13,14 @@ pub enum Comparator {
     LessThan, // x < y
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Mirror {
     Vertically,
     Horizontally,
     VerAndHor,
 }
 
-#[derive(Clone, Copy)]
-pub enum Effect {
-    Capture(Position),
-    Move(Position, Position)
-}
-
-#[derive(Clone, Copy)]
-pub enum Position {
-    /// ALWAYS relative to the "owner" of the move. 
-    Relative((i8,i8)),
-    Global((u8,u8)),
-}
-
+#[derive(Clone, Copy, Debug)]
 pub struct PieceStatus {
     pub board_pos: (Option<u8>, Option<u8>),
     pub relative_pos: Option<(i8, i8)>,
@@ -58,6 +47,7 @@ impl Default for PieceStatus {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Move {
     /// Describes the number of times that a move can be repeated in the same direction.
     /// If None, then there is no limit to the sliding.

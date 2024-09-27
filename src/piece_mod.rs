@@ -5,6 +5,7 @@ mod move_mod;
 use move_mod::*;
 
 /// A chess piece
+#[derive(Clone, Debug)]
 pub struct Piece {
     /// King: K, Queen: Q, Rook: R, Bishop: B, Knight: N, Pawn: p (optional in commands)
     pub rank: char,
@@ -14,6 +15,26 @@ pub struct Piece {
     pub last_moved: Option<u32>,
     pub times_moved: u32,
     pub moves: Vec<Move>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Effect {
+    Capture(Position),
+    Move(Position, Position)
+}
+
+#[derive(Clone, Copy, Debug,PartialEq)]
+pub enum Position {
+    /// ALWAYS relative to the "owner" of the move. 
+    Relative((i8,i8)),
+    Global((u8,u8)),
+}
+
+pub fn position (pos: Position, rel: (u8,u8)) -> (u8,u8) {
+    match pos { 
+        Position::Global((col, row)) => (col,row),
+        Position::Relative((r_col, r_row)) => ((r_col + rel.0 as i8) as u8, (r_row + rel.1 as i8) as u8)
+    }
 }
 
 impl Piece {
@@ -47,6 +68,19 @@ impl Piece {
     pub fn get_danger_zone (&self, col: u8, row: u8, game: &Game) -> HashSet<u8> {
         let mut all = HashSet::<u8>::new();
         for m in &self.moves {
+            if !m.can_capture {
+                let mut capture_effect = false;
+                for e in &m.effect {
+                    match e {
+                        Effect::Capture(_a) => {capture_effect = true; break;},
+                        _ => {}
+                    }
+                }
+                if !capture_effect {
+                    continue;
+                }
+            }
+
             let batch = m.prune(game, (col, row));
             for (key, val) in batch {
                 if m.can_capture {
