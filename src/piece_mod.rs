@@ -58,6 +58,11 @@ impl Piece {
         for m in &self.moves {
             let batch = m.prune(game, (col, row));
             for (key, val) in batch {
+
+                if !game.is_safe_move((col, row), (key % 8, key >> 3), &val, self.color) {
+                    continue;
+                }
+                
                 // This should never cause a collision (emphasis on should)
                 all.insert(key, val);
             }

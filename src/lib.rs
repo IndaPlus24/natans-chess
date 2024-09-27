@@ -136,14 +136,6 @@ impl Game {
 
             // Does it have the move?????
             if let Some(effects) = moves.get(&(to.0 + to.1 * 8)) {
-                if !self.is_safe_move(from, to, effects, piece.color) {
-                    print!(
-                        "The move {} ({},{}) to ({},{}) is not safe",
-                        piece.rank, from.0, from.1, to.0, to.1
-                    );
-                    return false;
-                }
-                /// IT DO! AND IT SAFE!
                 self.just_execute_move(from, to, effects);
 
                 // Do not move on until every single piece is promoted.
@@ -769,6 +761,31 @@ mod tests {
         }
         else {
             panic!("No piece to promote.");
+        }
+    }
+
+    #[test]
+    fn test_check() {
+        let mut t = test_template;
+        t[3 + 3 * 8] = 'R';
+        let b = Game::make_board(t, color_template).unwrap();
+        let mut g = Game {
+            board: b,
+            turn_owner: Color::White,
+            turn_count: 1,
+            game_state: GameState::Running
+        };
+        
+        g.make_move((3,3), (6,3));
+        
+        
+        if g.make_move((6,7), (6,6)) {
+            g.print_board();
+            panic!();
+        }
+
+        if !g.make_move((6,7), (7,7)) {
+            panic!();
         }
     }
 }
