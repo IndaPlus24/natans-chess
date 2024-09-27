@@ -62,11 +62,11 @@ pub struct Move {
     pub requirements: Vec<PieceStatus>,
     /// If a move would need a command that does not follow the traditional format, describe it here.
     pub command: Option<String>,
-    /// If a move would capture a piece without landing on its space, 
+    /// If a move would capture a piece without landing on its space,
     /// or it would cause a different piece to move, then this is how you do it.
     pub effect: Vec<Effect>,
     /// Apparently, you are unable to castle when in check.
-    pub safe_throughout: bool
+    pub safe_throughout: bool,
 }
 
 impl Default for Move {
@@ -81,15 +81,15 @@ impl Default for Move {
             requirements: Vec::new(),
             command: None,
             effect: Vec::new(),
-            safe_throughout: false
+            safe_throughout: false,
         }
     }
 }
 
 impl Move {
     // Make it do a hash map that includes all the extra effects
-    pub fn prune(&self, game: &Game, pos: (u8, u8)) -> HashMap<u8,Vec<Effect>> {
-        let mut valid = HashMap::<u8,Vec<Effect>>::new();
+    pub fn prune(&self, game: &Game, pos: (u8, u8)) -> HashMap<u8, Vec<Effect>> {
+        let mut valid = HashMap::<u8, Vec<Effect>>::new();
 
         if self.safe_throughout && game.is_safe_position(pos.0, pos.1, self.color) {
             return valid;
@@ -118,7 +118,7 @@ impl Move {
                     self.can_capture,
                     &self.color,
                     game,
-                    self.safe_throughout
+                    self.safe_throughout,
                 ) {
                     valid.insert(value, self.effect.clone());
                 }
@@ -139,7 +139,7 @@ impl Move {
                         self.can_capture,
                         &self.color,
                         game,
-                        self.safe_throughout
+                        self.safe_throughout,
                     ) {
                         valid.insert(value, self.effect.clone());
                     }
@@ -157,7 +157,7 @@ impl Move {
                         self.can_capture,
                         &self.color,
                         game,
-                        self.safe_throughout
+                        self.safe_throughout,
                     ) {
                         valid.insert(value, self.effect.clone());
                     }
@@ -175,7 +175,7 @@ impl Move {
                         self.can_capture,
                         &self.color,
                         game,
-                        self.safe_throughout
+                        self.safe_throughout,
                     ) {
                         valid.insert(value, self.effect.clone());
                     }
@@ -228,7 +228,7 @@ fn check_conditions(
                     }
                 }
 
-                game.piece_at(col, row)
+                game.get_piece_at(col, row)
             }
 
             _ => {
@@ -236,7 +236,7 @@ fn check_conditions(
                 let col = ((8 * cf) as i8 + con.board_pos.0.unwrap() as i8 * cdf) as u8;
                 let row = ((8 * rf) as i8 + con.board_pos.1.unwrap() as i8 * rdf) as u8;
 
-                game.piece_at(col, row)
+                game.get_piece_at(col, row)
             }
         };
 
@@ -268,7 +268,9 @@ fn check_piece_status(piece: Option<&Piece>, status: &PieceStatus, game: &Game) 
             // Check if the last move matches
             match status.last_moved {
                 Some(last_move) if last_move > 0 => {
-                    if p.last_moved == None || last_move as u32 != p.last_moved.unwrap() {return false;}
+                    if p.last_moved == None || last_move as u32 != p.last_moved.unwrap() {
+                        return false;
+                    }
                 }
                 Some(last_move) if last_move <= 0 => {
                     if let Some(p_last_move) = p.last_moved {
@@ -287,18 +289,38 @@ fn check_piece_status(piece: Option<&Piece>, status: &PieceStatus, game: &Game) 
                         return false;
                     }
                 }
-                _ => {}    
+                _ => {}
             }
 
             // Check if it has moved the right amount of times
             if let Some(cv) = &status.has_moved {
                 use Comparator::*;
                 match cv.0 {
-                    MoreThan => if p.times_moved <= cv.1 { return false; },
-                    AtLeast => if p.times_moved < cv.1 { return false; },
-                    Exactly => if p.times_moved != cv.1 { return false; },
-                    AtMost => if p.times_moved > cv.1 { return false; },
-                    LessThan => if p.times_moved >= cv.1 { return false; }
+                    MoreThan => {
+                        if p.times_moved <= cv.1 {
+                            return false;
+                        }
+                    }
+                    AtLeast => {
+                        if p.times_moved < cv.1 {
+                            return false;
+                        }
+                    }
+                    Exactly => {
+                        if p.times_moved != cv.1 {
+                            return false;
+                        }
+                    }
+                    AtMost => {
+                        if p.times_moved > cv.1 {
+                            return false;
+                        }
+                    }
+                    LessThan => {
+                        if p.times_moved >= cv.1 {
+                            return false;
+                        }
+                    }
                 }
             }
         } else {
@@ -342,12 +364,16 @@ fn prune_dir(
             return r;
         }
 
-        let p = game.piece_at(col as u8, row as u8);
+        let p = game.get_piece_at(col as u8, row as u8);
 
         match p {
-            None => if i >= min_s { r.push(col as u8 + row as u8 * 8)},
+            None => {
+                if i >= min_s {
+                    r.push(col as u8 + row as u8 * 8)
+                }
+            }
             Some(piece) => {
-                if ((can_capture && piece.color != *color) || i == 0) && i >= min_s{
+                if ((can_capture && piece.color != *color) || i == 0) && i >= min_s {
                     r.push(col as u8 + row as u8 * 8);
                 }
                 // Do not collide with yourself

@@ -2,7 +2,7 @@ use core::fmt::Display;
 
 /// Used to track piece alignment and who's turn it is.
 #[derive(PartialEq, Clone, Copy, Debug)]
-enum Color {
+pub enum Color {
     White,
     Black,
 }
@@ -17,21 +17,22 @@ impl Display for Color {
 }
 
 #[derive(PartialEq, Clone, Copy)]
-enum GameState {
+pub enum GameState {
     Running,
     Promote,
+    CheckMate,
     /// Hopefully I will never have to use this one.
     /// But I would rather have it and not need it, than need it and not have it.
     SomethingHasGoneTerriblyWrongMilord,
 }
 
 mod piece_mod;
-use std::collections::HashSet;
+use std::collections::*;
 
 use piece_mod::*;
 
 #[derive(Clone)]
-struct Game {
+pub struct Game {
     board: [Option<Piece>; 8 * 8],
     turn_owner: Color,
     turn_count: u32,
@@ -119,35 +120,36 @@ impl Game {
 
     /// Will move the piece.
     pub fn make_move(&mut self, from: (u8, u8), to: (u8, u8)) -> bool {
-        if self.game_state == GameState::Promote {
-            println!("Failed due to un-promoted pieces");
+        if self.game_state == GameState::Promote || self.game_state == GameState::CheckMate {
+            // println!("Failed due to un-promoted pieces");
             return false;
         }
 
-        println!("Moving from ({},{})", from.0, from.1);
-        if let Some(piece) = self.piece_at(from.0, from.1) {
+        // println!("Moving from ({},{})", from.0, from.1);
+        if let Some(piece) = self.get_piece_at(from.0, from.1) {
             // Do not move the opponent's piece
             if self.turn_owner != piece.color {
-                println!("{} can not move {}'s pieces", self.turn_owner, piece.color);
+                // println!("{} can not move {}'s pieces", self.turn_owner, piece.color);
                 return false;
             }
 
-            let moves = piece.all_possible_moves(from.0, from.1, self);
+            let moves = piece.get_all_possible_moves(from.0, from.1, self);
 
             // Does it have the move?????
             if let Some(effects) = moves.get(&(to.0 + to.1 * 8)) {
                 self.just_execute_move(from, to, effects);
+                // IT DO!!!!!!!!!
 
                 // Do not move on until every single piece is promoted.
                 if self.game_state != GameState::Promote {
                     self.increment_turn();
                 }
-                
+
                 return true;
             }
-            print!("If you are seeing this, then things have gone terribly wrong.");
+            // print!("If you are seeing this, then things have gone terribly wrong.");
         }
-        println!("No piece found at ({},{})", from.0, from.1);
+        // println!("No piece found at ({},{})", from.0, from.1);
         false
     }
 
@@ -197,7 +199,7 @@ impl Game {
     }
 
     // (0,0) is bottom left. (7,7) is top right.
-    pub fn piece_at(&self, col: u8, row: u8) -> Option<&Piece> {
+    pub fn get_piece_at(&self, col: u8, row: u8) -> Option<&Piece> {
         if col > 7 || row > 7 {
             return None;
         }
@@ -212,7 +214,7 @@ impl Game {
                     print!("\x1b[7m");
                 }
 
-                if let Some(p) = self.piece_at(col, row) {
+                if let Some(p) = self.get_piece_at(col, row) {
                     match p.color {
                         Color::White => print!("({})", p.rank),
                         Color::Black => print!("<{}>", p.rank),
@@ -227,8 +229,8 @@ impl Game {
     }
 
     pub fn print_moves(&self, col: u8, row: u8) {
-        if let Some(p) = self.piece_at(col, row) {
-            let moves = p.all_possible_moves(col, row, self);
+        if let Some(p) = self.get_piece_at(col, row) {
+            let moves = p.get_all_possible_moves(col, row, self);
 
             for r in (0..8 as u8).rev() {
                 for c in 0..8 as u8 {
@@ -241,7 +243,7 @@ impl Game {
                         print!("\x1b[7m");
                     }
 
-                    if let Some(p) = self.piece_at(c, r) {
+                    if let Some(p) = self.get_piece_at(c, r) {
                         match p.color {
                             Color::White => print!("({})", p.rank),
                             Color::Black => print!("[{}]", p.rank),
@@ -266,7 +268,7 @@ impl Game {
         }
 
         for i in 0..64 as u8 {
-            if let Some(piece) = self.piece_at(i % 8, i >> 3) {
+            if let Some(piece) = self.get_piece_at(i % 8, i >> 3) {
                 if piece.color == color {
                     continue;
                 }
@@ -313,16 +315,16 @@ impl Game {
         println!("Looking for a piece to promote.");
         let row: u8 = 7;
         for col in 0..8 as u8 {
-            if let Some(p) = self.piece_at(col, row) {
+            if let Some(p) = self.get_piece_at(col, row) {
                 if p.can_promote && p.color == Color::White {
                     return Some(((col, row), p.clone()));
                 }
             }
         }
-        
+
         let row: u8 = 0;
         for col in 0..8 as u8 {
-            if let Some(p) = self.piece_at(col, row) {
+            if let Some(p) = self.get_piece_at(col, row) {
                 if p.can_promote && p.color == Color::Black {
                     return Some(((col, row), p.clone()));
                 }
@@ -331,20 +333,22 @@ impl Game {
         None
     }
 
-    /// Returns false when the promotion failed. 
+    /// Returns false when the promotion failed.
     /// Will change the state when you are done.
     /// You can try promoting pieces not returned by get_promotion, but it will probably fail.
-    pub fn promote(&mut self, pos: (u8,u8), rank: char) -> bool {
+    pub fn promote(&mut self, pos: (u8, u8), rank: char) -> bool {
         if self.game_state != GameState::Promote {
             return false;
         }
 
-        if let Some(p) = self.piece_at(pos.0, pos.1) {
+        if let Some(p) = self.get_piece_at(pos.0, pos.1) {
             if !p.can_promote || p.rank == rank {
                 return false;
             }
 
-            if (!(p.color == Color::White && pos.1 == 7) && (!(p.color == Color::Black && pos.1 == 0))) {
+            if (!(p.color == Color::White && pos.1 == 7)
+                && (!(p.color == Color::Black && pos.1 == 0)))
+            {
                 return false;
             }
 
@@ -353,7 +357,7 @@ impl Game {
             if template_piece.is_crucial || template_piece.can_promote {
                 return false;
             }
-            
+
             let promoted_piece = Piece {
                 last_moved: p.last_moved,
                 times_moved: p.times_moved,
@@ -369,10 +373,38 @@ impl Game {
             }
 
             true
-        }
-        else {
+        } else {
             false
         }
+    }
+
+    /// Check what the state of the game is.
+    pub fn get_game_state(&self) -> GameState {
+        self.game_state
+    }
+
+    /// Figure out who's turn it is.
+    pub fn get_turn_owner(&self) -> Color {
+        self.turn_owner
+    }
+
+    /// Get the moves of the piece at the specified position.
+    pub fn get_moves(&self, col: u8, row: u8) -> Option<HashMap<u8, Vec<Effect>>> {
+        if let Some(p) = self.get_piece_at(col, row) {
+            return Some(p.get_all_possible_moves(col, row, self));
+        }
+        None
+    }
+
+    fn has_moves(&self) -> bool {
+        for i in 0..64 {
+            if let Some(m) = self.get_moves(i % 8, i >> 3) {
+                if (m.len() > 0) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn increment_turn(&mut self) {
@@ -385,13 +417,15 @@ impl Game {
                 self.turn_count += 1;
             }
         }
+
+        if !self.has_moves() {
+            self.game_state = GameState::CheckMate;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::thread::panicking;
-
     use super::*;
     const test_template: [char; 64] = [
         '0', 'K', '0', '0', '0', '0', '0', '0', //
@@ -437,7 +471,7 @@ mod tests {
         let to = (4 as u8, 2 as u8);
 
         let mut g = Game::new();
-        let p = g.piece_at(from.0, from.1).unwrap();
+        let p = g.get_piece_at(from.0, from.1).unwrap();
         let m = p.moves[0].prune(&g, from);
 
         if m.len() != 1 || !m.contains_key(&(to.0 + to.1 * 8)) {
@@ -445,7 +479,7 @@ mod tests {
         }
 
         println!("Move success: {}", g.make_move(from, to));
-        let a = g.piece_at(to.0, to.1);
+        let a = g.get_piece_at(to.0, to.1);
 
         println!("Debug Piece: {:#?}", a);
         g.print_board();
@@ -465,7 +499,7 @@ mod tests {
         let to2 = (4 as u8, 5 as u8);
 
         let mut g = Game::new();
-        let p = g.piece_at(from.0, from.1).unwrap();
+        let p = g.get_piece_at(from.0, from.1).unwrap();
         let m = p.moves[1].prune(&g, from);
 
         if m.len() != 1 || !m.contains_key(&(to.0 + to.1 * 8)) {
@@ -473,7 +507,7 @@ mod tests {
         }
 
         println!("Move success: {}", g.make_move(from, to));
-        let a = g.piece_at(to.0, to.1);
+        let a = g.get_piece_at(to.0, to.1);
 
         println!("Debug Piece: {:#?}", a);
         g.print_board();
@@ -489,7 +523,7 @@ mod tests {
         // Also make sure it can not move in such a way twice
         println!("Move success (should be false): {}", g.make_move(from, to));
 
-        let b = g.piece_at(to2.0, to2.1);
+        let b = g.get_piece_at(to2.0, to2.1);
 
         if let Some(p) = b {
             panic!();
@@ -499,7 +533,7 @@ mod tests {
     #[test]
     fn test_pawn_move_capture_false() {
         let g = Game::new();
-        let p = g.piece_at(4, 1).unwrap();
+        let p = g.get_piece_at(4, 1).unwrap();
         let m = p.moves[2].prune(&g, (4, 1));
 
         if m.len() != 0 {
@@ -527,7 +561,7 @@ mod tests {
 
         g.print_moves(start.0, start.1);
 
-        let p = g.piece_at(start.0, start.1).unwrap();
+        let p = g.get_piece_at(start.0, start.1).unwrap();
         let m = p.moves[2].prune(&g, start);
 
         if m.len() != 1 || !m.contains_key(&(goal.0 + goal.1 * 8)) {
@@ -535,7 +569,7 @@ mod tests {
         }
 
         println!("Move success: {}", g.make_move(start, goal));
-        let a = g.piece_at(goal.0, goal.1);
+        let a = g.get_piece_at(goal.0, goal.1);
 
         println!("Debug Piece: {:#?}", a);
         g.print_board();
@@ -575,8 +609,8 @@ mod tests {
 
         println!("Move part 3 success: {}", g.make_move(subgoal, goal));
 
-        let a = g.piece_at(goal.0, goal.1);
-        let b = g.piece_at(goal2.0, goal2.1);
+        let a = g.get_piece_at(goal.0, goal.1);
+        let b = g.get_piece_at(goal2.0, goal2.1);
 
         println!("Debug Piece: {:#?}", a);
         g.print_board();
@@ -612,7 +646,7 @@ mod tests {
 
         g.print_moves(start.0, start.1);
 
-        let p = g.piece_at(start.0, start.1).unwrap();
+        let p = g.get_piece_at(start.0, start.1).unwrap();
         let m = p.moves[2].prune(&g, start);
 
         if m.len() != 1 || !m.contains_key(&(goal.0 + goal.1 * 8)) {
@@ -620,7 +654,7 @@ mod tests {
         }
 
         println!("Move success: {}", g.make_move(start, goal));
-        let a = g.piece_at(goal.0, goal.1);
+        let a = g.get_piece_at(goal.0, goal.1);
 
         println!("Debug Piece: {:#?}", a);
         g.print_board();
@@ -636,7 +670,7 @@ mod tests {
     #[test]
     fn test_pawn_black_move_normal() {
         let g = Game::new();
-        let p = g.piece_at(4, 6).unwrap();
+        let p = g.get_piece_at(4, 6).unwrap();
         let m = p.moves[0].prune(&g, (4, 6));
 
         g.print_moves(4, 6);
@@ -649,7 +683,7 @@ mod tests {
     #[test]
     fn test_pawn_black_move_double() {
         let g = Game::new();
-        let p = g.piece_at(4, 6).unwrap();
+        let p = g.get_piece_at(4, 6).unwrap();
         let m = p.moves[1].prune(&g, (4, 6));
 
         g.print_moves(4, 6);
@@ -662,7 +696,7 @@ mod tests {
     #[test]
     fn test_pawn_black_move_capture_false() {
         let g = Game::new();
-        let p = g.piece_at(4, 6).unwrap();
+        let p = g.get_piece_at(4, 6).unwrap();
         let m = p.moves[2].prune(&g, (4, 6));
 
         g.print_moves(4, 6);
@@ -687,7 +721,7 @@ mod tests {
 
         g.print_moves(4, 4);
 
-        let p = g.piece_at(4, 4).unwrap();
+        let p = g.get_piece_at(4, 4).unwrap();
         let m = p.moves[2].prune(&g, (4, 4));
 
         if m.len() != 1 || !m.contains_key(&(3 + 3 * 8)) {
@@ -710,7 +744,7 @@ mod tests {
 
         g.print_moves(3, 4);
 
-        let p = g.piece_at(3, 4).unwrap();
+        let p = g.get_piece_at(3, 4).unwrap();
         let m = p.moves[2].prune(&g, (3, 4));
 
         if m.len() != 1 || !m.contains_key(&(4 + 3 * 8)) {
@@ -721,36 +755,40 @@ mod tests {
     #[test]
     fn test_promote() {
         let mut g = Game::new();
-        g.just_move((2,1), (2,7));
-        g.just_move((7,6), (7,7));
+        g.just_move((2, 1), (2, 7));
+        g.just_move((7, 6), (7, 7));
 
         g.print_board();
 
         print!("This move should fail: ");
-        if g.make_move((1,1), (1,2)) {
+        if g.make_move((1, 1), (1, 2)) {
             panic!("The move did not fail.");
         }
-        
+
         print!("This move should fail: ");
-        if g.make_move((1,6), (1,5)) {
+        if g.make_move((1, 6), (1, 5)) {
             panic!("The move did not fail.");
         }
 
         if let Some((pos, piece)) = g.get_promotion() {
-            if piece.rank != 'p' || piece.color != Color::White || pos != (2,7) {
+            if piece.rank != 'p' || piece.color != Color::White || pos != (2, 7) {
                 panic!("Wrong piece or position.");
             }
 
-            if g.promote(pos, 'p') || g.promote(pos, 'K') || g.promote((4,6), 'Q') || g.promote((7,7), 'Q') {
+            if g.promote(pos, 'p')
+                || g.promote(pos, 'K')
+                || g.promote((4, 6), 'Q')
+                || g.promote((7, 7), 'Q')
+            {
                 g.print_board();
                 panic!("It should not have promoted!");
             }
-            
+
             if !g.promote(pos, 'Q') {
                 panic!("It should have promoted, but did not.");
             }
 
-            if let Some(p) = g.piece_at(pos.0, pos.1) {
+            if let Some(p) = g.get_piece_at(pos.0, pos.1) {
                 if p.rank != 'Q' {
                     panic!("It lied about promoting!");
                 }
@@ -758,8 +796,7 @@ mod tests {
             } else {
                 panic!("It is just gone. What?");
             }
-        }
-        else {
+        } else {
             panic!("No piece to promote.");
         }
     }
@@ -773,18 +810,17 @@ mod tests {
             board: b,
             turn_owner: Color::White,
             turn_count: 1,
-            game_state: GameState::Running
+            game_state: GameState::Running,
         };
-        
-        g.make_move((3,3), (6,3));
-        
-        
-        if g.make_move((6,7), (6,6)) {
+
+        g.make_move((3, 3), (6, 3));
+
+        if g.make_move((6, 7), (6, 6)) {
             g.print_board();
             panic!();
         }
 
-        if !g.make_move((6,7), (7,7)) {
+        if !g.make_move((6, 7), (7, 7)) {
             panic!();
         }
     }
