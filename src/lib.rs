@@ -19,8 +19,7 @@ impl Display for Color {
 #[derive(PartialEq, Clone, Copy)]
 enum GameState {
     Running,
-    Check,
-    GameOver,
+    Promote,
     /// Hopefully I will never have to use this one.
     /// But I would rather have it and not need it, than need it and not have it.
     SomethingHasGoneTerriblyWrongMilord,
@@ -40,6 +39,7 @@ struct Game {
 }
 
 impl Game {
+    /// Make a new, completely normal board.
     pub fn new() -> Game {
         let template = [
             'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R', // White side
@@ -66,6 +66,7 @@ impl Game {
         }
     }
 
+    /// In case you want to set up a custom board.
     pub fn make_board(template: [char; 64], white_map: u64) -> Result<[Option<Piece>; 64], String> {
         let mut board: [Option<Piece>; 64];
         board = [
@@ -116,7 +117,13 @@ impl Game {
         Ok(board)
     }
 
+    /// Will move the piece.
     pub fn make_move(&mut self, from: (u8, u8), to: (u8, u8)) -> bool {
+        if self.game_state == GameState::Promote {
+            println!("Failed due to un-promoted pieces");
+            return false;
+        }
+
         println!("Moving from ({},{})", from.0, from.1);
         if let Some(piece) = self.piece_at(from.0, from.1) {
             // Do not move the opponent's piece
@@ -139,15 +146,11 @@ impl Game {
                 /// IT DO! AND IT SAFE!
                 self.just_execute_move(from, to, effects);
 
-                match self.turn_owner {
-                    Color::White => {
-                        self.turn_owner = Color::Black;
-                    }
-                    Color::Black => {
-                        self.turn_owner = Color::White;
-                        self.turn_count += 1;
-                    }
+                // Do not move on until every single piece is promoted.
+                if self.game_state != GameState::Promote {
+                    self.increment_turn();
                 }
+                
                 return true;
             }
             print!("If you are seeing this, then things have gone terribly wrong.");
@@ -168,7 +171,7 @@ impl Game {
         }
     }
 
-    /// This will force pieces to move. Will crash if there is no piece to move.
+    /// This will force pieces to move. Will crash if there is no piece to move because I can not be bothered to make it check first.
     fn just_move(&mut self, from: (u8, u8), to: (u8, u8)) {
         let piece = self.board[(from.0 + from.1 * 8) as usize]
             .clone()
@@ -179,6 +182,18 @@ impl Game {
             times_moved: piece.times_moved + 1,
             ..piece
         };
+
+        if piece2.can_promote {
+            if to.1
+                == match piece2.color {
+                    Color::White => 7,
+                    Color::Black => 0,
+                }
+            {
+                // Promotion time
+                self.game_state = GameState::Promote;
+            }
+        }
 
         self.board[(to.0 + to.1 * 8) as usize] = Some(piece2);
         self.board[(from.0 + from.1 * 8) as usize] = None;
@@ -296,10 +311,95 @@ impl Game {
         }
         return true;
     }
+
+    /// Get (a copy of) the piece that needs to be promoted.
+    /// If you stick to the default pieces, then there should be no issue.
+    pub fn get_promotion(&self) -> Option<((u8, u8), Piece)> {
+        if self.game_state != GameState::Promote {
+            return None;
+        }
+        println!("Looking for a piece to promote.");
+        let row: u8 = 7;
+        for col in 0..8 as u8 {
+            if let Some(p) = self.piece_at(col, row) {
+                if p.can_promote && p.color == Color::White {
+                    return Some(((col, row), p.clone()));
+                }
+            }
+        }
+        
+        let row: u8 = 0;
+        for col in 0..8 as u8 {
+            if let Some(p) = self.piece_at(col, row) {
+                if p.can_promote && p.color == Color::Black {
+                    return Some(((col, row), p.clone()));
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns false when the promotion failed. 
+    /// Will change the state when you are done.
+    /// You can try promoting pieces not returned by get_promotion, but it will probably fail.
+    pub fn promote(&mut self, pos: (u8,u8), rank: char) -> bool {
+        if self.game_state != GameState::Promote {
+            return false;
+        }
+
+        if let Some(p) = self.piece_at(pos.0, pos.1) {
+            if !p.can_promote || p.rank == rank {
+                return false;
+            }
+
+            if (!(p.color == Color::White && pos.1 == 7) && (!(p.color == Color::Black && pos.1 == 0))) {
+                return false;
+            }
+
+            let template_piece = Piece::new(p.color, rank);
+
+            if template_piece.is_crucial || template_piece.can_promote {
+                return false;
+            }
+            
+            let promoted_piece = Piece {
+                last_moved: p.last_moved,
+                times_moved: p.times_moved,
+                ..template_piece
+            };
+
+            self.board[(pos.0 + pos.1 * 8) as usize] = Some(promoted_piece);
+
+            if self.get_promotion().is_none() {
+                self.game_state = GameState::Running;
+
+                self.increment_turn();
+            }
+
+            true
+        }
+        else {
+            false
+        }
+    }
+
+    fn increment_turn(&mut self) {
+        match self.turn_owner {
+            Color::White => {
+                self.turn_owner = Color::Black;
+            }
+            Color::Black => {
+                self.turn_owner = Color::White;
+                self.turn_count += 1;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::thread::panicking;
+
     use super::*;
     const test_template: [char; 64] = [
         '0', 'K', '0', '0', '0', '0', '0', '0', //
@@ -327,7 +427,6 @@ mod tests {
 
     #[test]
     fn danger_zone() {
-        std::env::set_var("RUST_BACKTRACE", "1");
         let g = Game::new();
         let mut i = 0 as u8;
 
@@ -391,8 +490,7 @@ mod tests {
             if p.color != Color::White || p.last_moved != Some(1) || p.times_moved != 1 {
                 panic!();
             }
-        }
-        else {
+        } else {
             panic!();
         }
 
@@ -400,7 +498,7 @@ mod tests {
         println!("Move success (should be false): {}", g.make_move(from, to));
 
         let b = g.piece_at(to2.0, to2.1);
-    
+
         if let Some(p) = b {
             panic!();
         }
@@ -422,12 +520,12 @@ mod tests {
         let mut template = test_template;
         let start = (3 as u8, 3 as u8);
         let goal = (4 as u8, 4 as u8);
-        
+
         template[(start.0 + start.1 * 8) as usize] = 'p';
         template[(goal.0 + goal.1 * 8) as usize] = 'p';
 
         let b = Game::make_board(template, color_template).ok().unwrap();
-        
+
         let mut g = Game {
             board: b,
             turn_owner: Color::White,
@@ -467,12 +565,11 @@ mod tests {
         let start2 = (4 as u8, 6 as u8);
         let goal2 = (4 as u8, 4 as u8);
 
-        
         template[(start.0 + start.1 * 8) as usize] = 'p';
         template[(start2.0 + start2.1 * 8) as usize] = 'p';
 
         let b = Game::make_board(template, color_template).ok().unwrap();
-        
+
         let mut g = Game {
             board: b,
             turn_owner: Color::White,
@@ -483,7 +580,7 @@ mod tests {
         println!("Move part 1 success: {}", g.make_move(start, subgoal));
 
         println!("Move part 2 success: {}", g.make_move(start2, goal2));
-        
+
         println!("Move part 3 success: {}", g.make_move(subgoal, goal));
 
         let a = g.piece_at(goal.0, goal.1);
@@ -508,12 +605,12 @@ mod tests {
         let mut template = test_template;
         let start = (4 as u8, 3 as u8);
         let goal = (3 as u8, 4 as u8);
-        
+
         template[(start.0 + start.1 * 8) as usize] = 'p';
         template[(goal.0 + goal.1 * 8) as usize] = 'p';
 
         let b = Game::make_board(template, color_template).ok().unwrap();
-        
+
         let mut g = Game {
             board: b,
             turn_owner: Color::White,
@@ -626,6 +723,52 @@ mod tests {
 
         if m.len() != 1 || !m.contains_key(&(4 + 3 * 8)) {
             panic!();
+        }
+    }
+
+    #[test]
+    fn test_promote() {
+        let mut g = Game::new();
+        g.just_move((2,1), (2,7));
+        g.just_move((7,6), (7,7));
+
+        g.print_board();
+
+        print!("This move should fail: ");
+        if g.make_move((1,1), (1,2)) {
+            panic!("The move did not fail.");
+        }
+        
+        print!("This move should fail: ");
+        if g.make_move((1,6), (1,5)) {
+            panic!("The move did not fail.");
+        }
+
+        if let Some((pos, piece)) = g.get_promotion() {
+            if piece.rank != 'p' || piece.color != Color::White || pos != (2,7) {
+                panic!("Wrong piece or position.");
+            }
+
+            if g.promote(pos, 'p') || g.promote(pos, 'K') || g.promote((4,6), 'Q') || g.promote((7,7), 'Q') {
+                g.print_board();
+                panic!("It should not have promoted!");
+            }
+            
+            if !g.promote(pos, 'Q') {
+                panic!("It should have promoted, but did not.");
+            }
+
+            if let Some(p) = g.piece_at(pos.0, pos.1) {
+                if p.rank != 'Q' {
+                    panic!("It lied about promoting!");
+                }
+                println!("Success!");
+            } else {
+                panic!("It is just gone. What?");
+            }
+        }
+        else {
+            panic!("No piece to promote.");
         }
     }
 }
