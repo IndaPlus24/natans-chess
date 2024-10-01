@@ -249,6 +249,7 @@ impl Piece {
             }],
         }
     }
+
     fn new_queen(color: Color) -> Piece {
         Piece {
             color,
@@ -323,6 +324,10 @@ impl Piece {
                         PieceStatus {
                             relative_pos: Some((0, 0)),
                             has_moved: Some((Comparator::Exactly, 0)),
+                            ..Default::default()
+                        },
+                        PieceStatus {
+                            relative_pos: Some((-3,0)),
                             ..Default::default()
                         },
                         PieceStatus {
