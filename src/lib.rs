@@ -388,7 +388,19 @@ impl Game {
         self.turn_owner
     }
 
-    /// Get the moves of the piece at the specified position.
+    
+    /// Gets a hashmap of all possible moves a piece at the specified
+    /// position can make with, together with the move's Effect.\
+    /// Since the positions are the "keys", I recommend that
+    /// you iterate across the whole thing.\
+    /// By the way, if you want to actually get a position from the
+    /// singe u8 this thing gives you, do the following
+    /// ```
+    /// let pos = // Imagine that it somehow gets a position from the hashmap.
+    /// let col = pos % 8;
+    /// let row = pose >> 3;
+    /// ```
+    /// Quick side note; the engine caches no results, ever. So, consider caching it yourself.
     pub fn get_moves(&self, col: u8, row: u8) -> Option<HashMap<u8, Vec<Effect>>> {
         if let Some(p) = self.get_piece_at(col, row) {
             return Some(p.get_all_possible_moves(col, row, self));
