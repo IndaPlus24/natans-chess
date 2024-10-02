@@ -1,7 +1,7 @@
 # 🧀 ♕ CHEESS ♔ 🧀 
 Documentation time.
 
-# Foreword:
+### Foreword:
 All claims about how the system functions is made with an astonishing lack of testing, meaning that every statement made is to be read as "should".
 
 Sorry.
