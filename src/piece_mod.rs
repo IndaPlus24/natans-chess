@@ -17,18 +17,7 @@ pub struct Piece {
     pub moves: Vec<Move>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Effect {
-    Capture(Position),
-    Move(Position, Position),
-}
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Position {
-    /// ALWAYS relative to the "owner" of the move.
-    Relative((i8, i8)),
-    Global((u8, u8)),
-}
 
 pub fn position(pos: Position, rel: (u8, u8)) -> (u8, u8) {
     match pos {

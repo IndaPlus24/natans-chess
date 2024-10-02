@@ -7,6 +7,49 @@ pub enum Color {
     Black,
 }
 
+/// Moves such as Castling and en passant affect pieces on squares other than the one they land on.\
+/// These are used to describe such effects.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Effect {
+    /// Capture the piece at the position.
+    Capture(Position),
+    /// Moves the piece from the first to the second.
+    Move(Position, Position),
+}
+
+/// Position stuff
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Position {
+    /// ALWAYS relative to the where "owner" of the move is when they start the move.
+    Relative((i8, i8)),
+    Global((u8, u8)),
+}
+
+impl Position {
+    /// Adds up the sum of two positions as you would expect them to.\
+    /// - A global position + a global position returns None (it breaks)\
+    /// - A global position + a relative position returns a global position\
+    /// - A relative position + a relative position returns a relative position
+    pub fn add(self, p2: Position) -> Option<Position> {
+        match self {
+            Position::Global((x, y)) => match p2 {
+                Position::Global(_f) => None,
+                Position::Relative((dx, dy)) => Some(Position::Global((
+                    (x as i8 + dx) as u8,
+                    (y as i8 + dy) as u8,
+                ))),
+            },
+            Position::Relative((dx, dy)) => match p2 {
+                Position::Global((x, y)) => Some(Position::Global((
+                    (x as i8 + dx) as u8,
+                    (y as i8 + dy) as u8,
+                ))),
+                Position::Relative((dx2, dy2)) => Some(Position::Relative((dx + dx2, dy + dy2))),
+            },
+        }
+    }
+}
+
 impl Display for Color {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -16,12 +59,18 @@ impl Display for Color {
     }
 }
 
+/// Describes, you guessed it, the state of the game.
 #[derive(PartialEq, Clone, Copy)]
 pub enum GameState {
+    /// Everything is running fine.
     Running,
+    /// You need to promote pieces before you can continue.
     Promote,
+    /// The turn owner is currently in check.
     Check,
+    /// The turn owner is currently in check.
     CheckMate,
+    /// It is a stalemate, and the game is a draw.
     Stalemate,
     /// Hopefully I will never have to use this one.
     /// But I would rather have it and not need it, than need it and not have it.
@@ -33,6 +82,7 @@ use std::collections::*;
 
 use piece_mod::*;
 
+/// The thing with all the things in it!
 #[derive(Clone)]
 pub struct Game {
     board: [Option<Piece>; 8 * 8],
@@ -120,11 +170,11 @@ impl Game {
         Ok(board)
     }
 
-    /// Will move the piece.
+    /// Will move the piece, if it deems the move to be legal, of course.
     pub fn make_move(&mut self, from: (u8, u8), to: (u8, u8)) -> bool {
         match self.game_state {
-            GameState::Running | GameState::Check => {},
-            _ => return false
+            GameState::Running | GameState::Check => {}
+            _ => return false,
         }
 
         // println!("Moving from ({},{})", from.0, from.1);
@@ -200,7 +250,10 @@ impl Game {
         self.board[(pos.0 + pos.1 * 8) as usize] = None;
     }
 
-    // (0,0) is bottom left. (7,7) is top right.
+    /// (0,0) is bottom left. (7,7) is top right.\
+    /// Due to the structure of this thing, the default doc file does not
+    /// include any information about the Piece struct. However, you should
+    /// be able to find all the necessary stuff in the README file.
     pub fn get_piece_at(&self, col: u8, row: u8) -> Option<&Piece> {
         if col > 7 || row > 7 {
             return None;
@@ -208,6 +261,7 @@ impl Game {
         self.board[(row * 8 + col) as usize].as_ref()
     }
 
+    /// Why would you use this? Why did I make this public?
     pub fn print_board(&self) {
         // Row 0 is the bottom, but the console draws top to bottom.
         for row in (0..8 as u8).rev() {
@@ -230,6 +284,7 @@ impl Game {
         }
     }
 
+    /// Why would you use this? Why did I make this public?
     pub fn print_moves(&self, col: u8, row: u8) {
         if let Some(p) = self.get_piece_at(col, row) {
             let moves = p.get_all_possible_moves(col, row, self);
@@ -261,7 +316,7 @@ impl Game {
         }
     }
 
-    /// The color refers to who it is safe FOR, not from.
+    /// The color you give as an argument refers to who the space is safe FOR, not from.
     pub fn is_safe_position(&self, col: u8, row: u8, color: Color) -> bool {
         // Assume that every move that they can make in response is safe.
         // This should (emphasis on should) stop any and all infinite loops.
@@ -283,6 +338,7 @@ impl Game {
         true
     }
 
+    /// The color you give as an argument refers to who the space is safe FOR, not from.
     fn is_safe_move(
         &self,
         from: (u8, u8),
@@ -335,8 +391,8 @@ impl Game {
         None
     }
 
-    /// Returns false when the promotion failed.
-    /// Will change the state when you are done.
+    /// Returns false when the promotion failed.\
+    /// Will change the state when you are done.\
     /// You can try promoting pieces not returned by get_promotion, but it will probably fail.
     pub fn promote(&mut self, pos: (u8, u8), rank: char) -> bool {
         if self.game_state != GameState::Promote {
@@ -455,13 +511,16 @@ impl Game {
 
         if self.in_check() {
             self.game_state = GameState::Check;
+        } else {
+            self.game_state = GameState::Running;
         }
+
         if !self.has_moves() {
             self.game_state = match self.game_state {
                 GameState::Check => GameState::CheckMate,
-                _ => GameState::Stalemate
+                _ => GameState::Stalemate,
             }
-        } 
+        }
     }
 }
 

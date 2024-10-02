@@ -61,4 +61,4 @@ I then found out that people use large and small characters to differentiate bet
 ## Build a Piece
 The thing that makes Cheess into Cheess is the fact that I am an idiot who decided that it would be fun if I implemented tools for making custom pieces. These tools are needlessly complex, and I do not have the time to explain how it all works. In addition, I do not think there currently exists a way for you to access any of the features needed to make a custom piece. I hope to change all of this sometime soon, but not right now.
 # The Other Things
-There are a lot of other things going on, but I have no idea if you have access to it, and if you do, you should not need to use it. So if you see anything strange, just ignore it.
+There are a lot of other things going on, like `Effect` and `Position`, but they have some documentation and should be self explanatory. You should not need to worry about anything else.
