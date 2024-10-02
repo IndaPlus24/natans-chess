@@ -20,7 +20,9 @@ impl Display for Color {
 pub enum GameState {
     Running,
     Promote,
+    Check,
     CheckMate,
+    Stalemate,
     /// Hopefully I will never have to use this one.
     /// But I would rather have it and not need it, than need it and not have it.
     SomethingHasGoneTerriblyWrongMilord,
@@ -120,9 +122,9 @@ impl Game {
 
     /// Will move the piece.
     pub fn make_move(&mut self, from: (u8, u8), to: (u8, u8)) -> bool {
-        if self.game_state == GameState::Promote || self.game_state == GameState::CheckMate {
-            // println!("Failed due to un-promoted pieces");
-            return false;
+        match self.game_state {
+            GameState::Running | GameState::Check => {},
+            _ => return false
         }
 
         // println!("Moving from ({},{})", from.0, from.1);
@@ -388,7 +390,6 @@ impl Game {
         self.turn_owner
     }
 
-    
     /// Gets a hashmap of all possible moves a piece at the specified
     /// position can make with, together with the move's Effect.\
     /// Since the positions are the "keys", I recommend that
@@ -410,8 +411,30 @@ impl Game {
 
     fn has_moves(&self) -> bool {
         for i in 0..64 {
+            if let Some(p) = self.get_piece_at(i % 8, i >> 3) {
+                if p.color != self.turn_owner {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+
             if let Some(m) = self.get_moves(i % 8, i >> 3) {
-                if (m.len() > 0) {
+                if m.len() > 0 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn in_check(&self) -> bool {
+        for i in 0..64 {
+            if let Some(p) = self.get_piece_at(i % 8, i >> 3) {
+                if p.is_crucial
+                    && p.color == self.turn_owner
+                    && !self.is_safe_position(i % 8, i >> 3, p.color)
+                {
                     return true;
                 }
             }
@@ -430,9 +453,15 @@ impl Game {
             }
         }
 
-        if !self.has_moves() {
-            self.game_state = GameState::CheckMate;
+        if self.in_check() {
+            self.game_state = GameState::Check;
         }
+        if !self.has_moves() {
+            self.game_state = match self.game_state {
+                GameState::Check => GameState::CheckMate,
+                _ => GameState::Stalemate
+            }
+        } 
     }
 }
 

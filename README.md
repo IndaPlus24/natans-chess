@@ -26,11 +26,13 @@ Look under Game > Promotion and Piece > Moves for more info on dealing with resp
 This uses two functions: `self.get_promotion()` and `self.promote(pos, rank)`. I recommend just putting the output position from the first into the second, along with whatever rank the user picks. Read more about ranks under Piece
 There is also `self.get_game_state()`, which will tell you if there are pieces to promote. Read more under Game > Game State
 ## Game State
-Check it with `self.get_game_state()`. There are currently ~~3~~ I mean 4 values:
+Check it with `self.get_game_state()`. There are currently ~~3~~ I mean ~~4~~ I mean 6 values:
 - `Running`, which means you can play the game normally.
 - `Promote`, which means you need to promote some pieces. The state will automatically change when you promote them all. Read more under Game > Promoting.
 - `SomethingHasGoneTerriblyWrongMilord`, which is currently unused, because nothing will ever go wrong! (And because I find it funny, and it makes me happy.)
-- `CheckMate`. I did not actually plan to include it, but then I just made it test every single move, and it went fast enough, so I am just rolling with it. It does not compute draws, or stalemates, or anything like that. Anyway, the player who currently owns the turn is the player who is in check mate, meaning they are the looser.
+- `Check`, the engine does not actually care about being in check or not, it acts the same either way, so I thought it was a bit redundant. However, I then realized that it was actually mandatory, so here it is.
+- `CheckMate`, I did not actually plan to include it, but then I just made it test every single move, and it went fast enough, so I am just rolling with it. Anyway, the player who currently owns the turn is the player who is in check mate, meaning they are the looser.
+- `Stalemate`, I realized that I basically already have the logic I need for it, so why not. Note that this is the only form of draw that the engine checks for.
 
 I am also going to tell you about `self.get_turn_owner()`, which tells you who is supposed to make a move. This will change when a valid move is made and all pieces are promoted.
 ## Looking at the Board
